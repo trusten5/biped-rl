@@ -5,7 +5,7 @@ Outline:
      thigh -> knee -> shin -> ankle -> foot. side = +1 (left) or -1 (right). Done.
   2. Servo mass on the link that holds each servo, and a position actuator per
      joint (add_servo_joint). Done.
-  3. Stand keyframe with automatic base height.
+  3. Stand keyframe with automatic base height (add_keyframes). Done.
   4. Add sensors (IMU site on torso, foot contact), cameras, and payload.
 
 Servos: each joint is driven by one servo. The servo body is bolted to the
@@ -136,6 +136,61 @@ def build_head(spec, parent, cfg):
     return head
 
 
+LEG_JOINTS = ['hip_yaw', 'hip_roll', 'hip_pitch', 'knee', 'ankle']
+
+
+def add_keyframes(spec, cfg):
+    """Add each pose in cfg['keyframes'] as a MuJoCo keyframe.
+
+    Leg joints in the YAML (hip_pitch, knee, ...) are set on both legs; other
+    keys are full joint names. ctrl is set equal to the pose so the position
+    actuators hold it instead of pulling to zero. base_height 0 means: place
+    the torso so the lowest point of the robot just touches the floor.
+    """
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    root = model.joint('root').qposadr[0]
+
+    for key_name, pose in cfg['keyframes'].items():
+        data.qpos[:] = model.qpos0
+        for joint, value in pose.items():
+            if joint == 'base_height':
+                continue
+            names = [f'left_{joint}', f'right_{joint}'] if joint in LEG_JOINTS else [joint]
+            for name in names:
+                data.qpos[model.joint(name).qposadr[0]] = value
+
+        data.qpos[root:root + 3] = [0, 0, 0]
+        height = pose.get('base_height', 0) or -_lowest_point(model, data)
+        data.qpos[root + 2] = height
+
+        # Each actuator's target is the angle of the joint it drives
+        ctrl = [data.qpos[model.jnt_qposadr[model.actuator_trnid[i, 0]]] for i in range(model.nu)]
+        spec.add_key(name=key_name, qpos=data.qpos.copy(), ctrl=ctrl)
+
+
+def _lowest_point(model, data):
+    """Lowest world z of any colliding robot geom (boxes, capsules, spheres) at data.qpos."""
+    mujoco.mj_forward(model, data)
+    lowest = float('inf')
+    for g in range(model.ngeom):
+        if model.geom_bodyid[g] == 0 or model.geom_contype[g] == 0:
+            continue  # skip the floor and mass-only servo boxes
+        center, rot, size = data.geom_xpos[g], data.geom_xmat[g].reshape(3, 3), model.geom_size[g]
+        gtype = model.geom_type[g]
+        if gtype == mujoco.mjtGeom.mjGEOM_BOX:
+            # z of the lowest corner: center minus the half sizes projected onto world z
+            z = center[2] - sum(abs(rot[2, i]) * size[i] for i in range(3))
+        elif gtype == mujoco.mjtGeom.mjGEOM_CAPSULE:
+            z = center[2] - abs(rot[2, 2]) * size[1] - size[0]
+        elif gtype == mujoco.mjtGeom.mjGEOM_SPHERE:
+            z = center[2] - size[0]
+        else:
+            continue
+        lowest = min(lowest, z)
+    return lowest
+
+
 def _fixed_mount(spec):
     """Fixed box standing in for the torso (no joint, so welded to the world)."""
     mount = spec.worldbody.add_body(name='mount', pos=[0, 0, 0.3])
@@ -182,4 +237,5 @@ def build() -> mujoco.MjSpec:
     build_leg(spec, torso, cfg, -1)
     build_head(spec, torso, cfg)
 
+    add_keyframes(spec, cfg)
     return spec
