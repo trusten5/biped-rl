@@ -14,7 +14,7 @@ always-on companionship behaviors.
 Phase 0, software-first design (late Oct to Nov 2026):
 
 - [x] Repo and environment setup, dev tools
-- [ ] Parametric MuJoCo model generator (MjSpec) driven by one config
+- [x] Parametric MuJoCo model generator (MjSpec) driven by one config
 - [ ] Keyframed reference motions (walk, look up, attention bob, crouch-peek, point, sit, sleep)
 - [ ] Inverse dynamics and actuator sizing sweeps, with and without payload
 - [ ] Servo bench tests and BAM actuator model fitting
@@ -51,13 +51,16 @@ Run from the repo root with the venv active.
 python -m tools.view                       # hot-reload viewer for model.generator:build
 python -m tools.view model.leg:build_test  # any module:function returning an MjSpec or MjModel
 python -m tools.view path\to\robot.xml     # or a plain MJCF file
-python -m tools.view --frozen              # kinematics only, plus a joint slider window
+python -m tools.view --frozen              # kinematics only, sliders set joint angles
 
 python -m tools.inspect_model              # mass, COM, joints, actuators, sensors
+python -m tools.check_model                # PASS/FAIL sanity checks (signs, mirror, standing, sensors)
 ```
 
 The viewer rebuilds whenever a file under `model/` is saved and keeps the
-last good model if the rebuild fails. Built models are written to
+last good model if the rebuild fails. A slider window opens next to it: with
+physics on, sliders set the servo targets; with `--frozen`, they set joint
+angles directly. Built models are written to
 `model/generated/robot.xml` (not committed).
 
 ## Conventions

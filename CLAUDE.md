@@ -41,10 +41,11 @@ Later phases: CAD and one-leg validation (Dec to Jan), custom PCB and full
 build (Jan to Feb), animation-driven RL in mjlab with sim-to-real (Feb to
 Apr), perception, tasks and paper (Apr to May).
 
-**Status (2026-10-25):** Repo setup, robot.yaml config, mirrored build_leg,
-pan-tilt head, and the full free-floating build() are done (no servo masses,
-actuators, sensors, or keyframes yet). Next: servo masses, position
-actuators, stand keyframe with auto base height.
+**Status (2026-10-25):** Generator (step 1) done: robot.yaml config,
+mirrored legs, pan-tilt head, servo masses, position actuators, stand
+keyframe with auto base height, IMU/touch sensors, head camera, payload,
+collision filtering. build(cfg) accepts a modified config for sweeps.
+Next: step 2, keyframed reference motions in motions/.
 
 ## Working with Claude
 
@@ -114,11 +115,16 @@ Run from the repo root with the venv active.
 
 - `python -m tools.view [module:func | file.xml] [--frozen]`: hot-reload
   viewer. Rebuilds whenever a file under model/ is saved; keeps the last good
-  model on errors; resets to the "stand" keyframe if present. `--frozen`
-  skips physics and opens a separate joint slider window (the viewer's own
-  Joint panel is read-only in passive mode).
+  model on errors; resets to the "stand" keyframe if present. Opens a
+  separate slider window (the viewer's own Joint and Control panels are
+  read-only in passive mode): with physics on, sliders set actuator targets
+  and "Reset robot" restores the keyframe; `--frozen` skips physics and the
+  sliders set joint angles.
 - `python -m tools.inspect_model [module:func | file.xml]`: prints total
   mass, COM, bodies, joints, actuators, sensors, cameras, sites, keyframes.
+- `python -m tools.check_model`: PASS/FAIL sanity checks (joint signs,
+  mirroring, stand keyframe, standing stability, sensors, collisions,
+  payload). Run after any generator or config change.
 - Default source is `model.generator:build`: a zero-argument function that
   loads the config and returns an MjSpec. When built from a spec, the XML is
   written to model/generated/robot.xml for debugging.

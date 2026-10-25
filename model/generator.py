@@ -6,7 +6,13 @@ Outline:
   2. Servo mass on the link that holds each servo, and a position actuator per
      joint (add_servo_joint). Done.
   3. Stand keyframe with automatic base height (add_keyframes). Done.
-  4. Add sensors (IMU site on torso, foot contact), cameras, and payload.
+  4. Sensors (torso IMU, foot and head touch), head camera, and payload. Done.
+  5. Collision filtering (set_collisions). Done.
+
+Sensors mirror the real hardware where they can: the ICM-42688 IMU on the
+carrier board (gyro, accelerometer), foot contact, the capacitive head pad,
+and the head camera. imu_quat is sim only (on the robot it comes from IMU
+fusion on the ESP32).
 
 Servos: each joint is driven by one servo. The servo body is bolted to the
 parent link and its horn turns the child, so the servo's mass goes in the
@@ -27,6 +33,12 @@ import mujoco
 from model.config import load_config
 
 
+# Collision bits (contype / conaffinity). Two geoms collide if
+# (contype1 & conaffinity2) or (contype2 & conaffinity1) is nonzero.
+WORLD = 1
+ROBOT = 2
+
+
 def mirror_pos(v, side):
     """Mirror a position across the xz plane for the right side."""
     return [v[0], side * v[1], v[2]]
@@ -44,7 +56,7 @@ def new_spec(cfg) -> mujoco.MjSpec:
     spec.option.timestep = cfg['sim']['timestep']
 
     spec.worldbody.add_geom(name='floor', type=mujoco.mjtGeom.mjGEOM_PLANE,
-                            size=[0.5, 0.5, 0.01], rgba=[0.5, 0, 0.5, 1])
+                            size=[0.5, 0.5, 0.01], rgba=[0.5, 0, 0.5, 1], contype=WORLD, conaffinity=ROBOT)
     spec.worldbody.add_light(name='light', pos=[0, 0, 1], dir=[0, 0, -1])
     return spec
 
@@ -107,6 +119,14 @@ def build_leg(spec, parent, cfg, side):
     add_hinge(shin, foot, 'ankle')
     foot.add_geom(name=f'{prefix}_foot', type=mujoco.mjtGeom.mjGEOM_BOX, size=[s / 2 for s in foot_cfg['size']], pos=mirror_pos(foot_cfg['ankle_to_center'], side), mass=mass['foot'])
 
+    # Foot touch sensor: a thin site volume covering the sole; it reports the normal force of contacts inside it.
+    # Box contacts sit on the sole's corners, so the site is a little larger than the sole to keep them inside.
+    margin = 0.003
+    sole_center = mirror_pos(foot_cfg['ankle_to_center'], side)
+    sole_center[2] -= foot_cfg['size'][2] / 2
+    foot.add_site(name=f'{prefix}_foot_touch', type=mujoco.mjtGeom.mjGEOM_BOX, size=[foot_cfg['size'][0] / 2 + margin, foot_cfg['size'][1] / 2 + margin, margin], pos=sole_center, rgba=[1, 0.5, 0, 0.3])
+    spec.add_sensor(name=f'{prefix}_foot_touch', type=mujoco.mjtSensor.mjSENS_TOUCH, objtype=mujoco.mjtObj.mjOBJ_SITE, objname=f'{prefix}_foot_touch')
+
     return foot
 
 
@@ -133,7 +153,48 @@ def build_head(spec, parent, cfg):
     add_hinge(head, jaw, 'jaw')
     jaw.add_geom(name='jaw', type=mujoco.mjtGeom.mjGEOM_BOX, size=[s / 2 for s in head_cfg['jaw_size']], pos=head_cfg['jaw_center'], mass=head_cfg['jaw_mass'])
 
+    # Head camera looking forward along the head's +x. A MuJoCo camera looks along its own -z,
+    # so xyaxes sets camera x = head -y (image right) and camera y = head +z (image up).
+    head.add_camera(name='head_camera', pos=head_cfg['camera_pos'], xyaxes=[0, -1, 0, 0, 0, 1], fovy=head_cfg['camera_fovy'])
+
+    # Capacitive touch pad on top of the head, for head pats
+    head.add_site(name='head_touch', type=mujoco.mjtGeom.mjGEOM_BOX, size=[s / 2 for s in head_cfg['touch_pad_size']], pos=head_cfg['touch_pad_pos'], rgba=[0, 0.6, 1, 0.3])
+    spec.add_sensor(name='head_touch', type=mujoco.mjtSensor.mjSENS_TOUCH, objtype=mujoco.mjtObj.mjOBJ_SITE, objname='head_touch')
+
     return head
+
+
+def add_imu(spec, torso, cfg):
+    """IMU site on the torso with gyro, accelerometer, and orientation sensors."""
+    torso.add_site(name='imu', pos=cfg['torso']['imu_pos'], size=[0.005])
+    site = dict(objtype=mujoco.mjtObj.mjOBJ_SITE, objname='imu')
+    spec.add_sensor(name='imu_gyro', type=mujoco.mjtSensor.mjSENS_GYRO, **site)
+    spec.add_sensor(name='imu_accel', type=mujoco.mjtSensor.mjSENS_ACCELEROMETER, **site)
+    spec.add_sensor(name='imu_quat', type=mujoco.mjtSensor.mjSENS_FRAMEQUAT, **site)
+
+
+def add_payload(torso, cfg):
+    """Drink payload fixed to the torso, if enabled. Mass only for now (no collisions)."""
+    payload = cfg['payload']
+    if not payload['enabled']:
+        return
+    body = torso.add_body(name='payload', pos=payload['position'])
+    diameter, height = payload['size']
+    body.add_geom(name='payload', type=mujoco.mjtGeom.mjGEOM_CYLINDER, size=[diameter / 2, height / 2], mass=payload['mass'], contype=0, conaffinity=0, rgba=[0.9, 0.7, 0.1, 1])
+
+
+def set_collisions(spec, cfg):
+    """Robot geoms collide with the floor only, plus explicit left vs right leg pairs from the YAML."""
+    for geom in spec.geoms:
+        if geom.name == 'floor' or geom.contype == 0:
+            continue  # leave the floor and mass-only geoms (servos, payload) alone
+        geom.contype, geom.conaffinity = ROBOT, WORLD
+
+    # Explicit pairs bypass the contype / conaffinity filter
+    for a, b in cfg['collisions']['leg_pairs']:
+        spec.add_pair(name=f'left_{a}_right_{b}', geomname1=f'left_{a}', geomname2=f'right_{b}')
+        if a != b:
+            spec.add_pair(name=f'right_{a}_left_{b}', geomname1=f'right_{a}', geomname2=f'left_{b}')
 
 
 LEG_JOINTS = ['hip_yaw', 'hip_roll', 'hip_pitch', 'knee', 'ankle']
@@ -222,9 +283,12 @@ def build_legs_fixed_base() -> mujoco.MjSpec:
     return spec
 
 
-def build() -> mujoco.MjSpec:
-    """Full robot with a free-floating torso. Default source for the dev tools."""
-    cfg = load_config()
+def build(cfg=None) -> mujoco.MjSpec:
+    """Full robot with a free-floating torso. Default source for the dev tools.
+
+    Pass a cfg dict to build a variant (sizing sweeps, payload on); otherwise robot.yaml is loaded.
+    """
+    cfg = cfg or load_config()
     spec = new_spec(cfg)
 
     # Torso (free joint, so the whole robot can move and fall)
@@ -236,6 +300,9 @@ def build() -> mujoco.MjSpec:
     build_leg(spec, torso, cfg, 1)
     build_leg(spec, torso, cfg, -1)
     build_head(spec, torso, cfg)
+    add_imu(spec, torso, cfg)
+    add_payload(torso, cfg)
+    set_collisions(spec, cfg)
 
     add_keyframes(spec, cfg)
     return spec

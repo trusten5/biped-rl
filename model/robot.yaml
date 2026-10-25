@@ -37,6 +37,7 @@ torso:
   size: [0.08, 0.10, 0.10]    # full box x, y, z (not half sizes) [m]
   structure_mass: 0.45        # frame + Pi 5 + battery + PCB, servos excluded [kg]
   com_offset: [0.0, 0.0, 0.0] # COM relative to box center [m]
+  imu_pos: [0.0, 0.0, 0.0]    # torso center to the IMU on the carrier board [m]
 
 # Left leg. Offsets are from the parent joint to the child joint, in the
 # parent frame at zero pose.
@@ -69,6 +70,10 @@ head:
   jaw_size: [0.04, 0.05, 0.01]        # full box x, y, z [m]
   jaw_center: [0.02, 0.0, 0.0]        # jaw hinge to jaw box center [m]
   jaw_mass: 0.01
+  camera_pos: [0.035, 0.0, 0.04]       # neck pitch axis to camera, front face of head [m]
+  camera_fovy: 70                      # vertical field of view [deg] (MuJoCo always uses degrees here)
+  touch_pad_pos: [0.0, 0.0, 0.07]      # neck pitch axis to head-pat touch pad, top of head [m]
+  touch_pad_size: [0.04, 0.04, 0.004]  # full box x, y, z [m]
 
 # Joint axes are in the parent link frame. Ranges are [min, max] in rad.
 # Positive rotation about +y (right-hand rule) swings a downward leg BACKWARD
@@ -91,7 +96,19 @@ joints:
 payload:
   enabled: false
   mass: 0.4                 # [kg]
-  position: [0.05, 0.0, -0.03]  # relative to torso center [m]
+  position: [0.05, 0.0, -0.03]  # torso center to payload center [m]
+  size: [0.066, 0.12]       # cylinder full diameter, height (a drink can) [m]
+
+# Every robot geom collides with the floor. Robot-against-robot contacts are
+# off, except these pairs of leg links (left vs right), which can really touch
+# when the legs cross or swing past each other. [foot, shin] adds both
+# left foot vs right shin and right foot vs left shin.
+collisions:
+  leg_pairs:
+    - [foot, foot]
+    - [shin, shin]
+    - [thigh, thigh]
+    - [foot, shin]
 
 # Named poses, written as MuJoCo keyframes. Leg values are per side;
 # the generator mirrors them.
