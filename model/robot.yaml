@@ -1,0 +1,94 @@
+# Robot parameters: the single source of truth for the generator.
+#
+# Units: SI everywhere (m, kg, N*m, rad, s). Angles are radians; degrees are
+# given in comments for readability.
+# Frames: x forward, y left, z up.
+# Only the LEFT leg is described. The generator mirrors it to make the right
+# leg (flip y offsets, and flip the signs of hip yaw and hip roll axes).
+#
+# All values below are first guesses for a ~30 cm, ~1.3 kg robot. They will
+# change after the inverse dynamics sizing sweep.
+
+name: biped
+
+sim:
+  timestep: 0.002          # physics step [s]
+  control_dt: 0.02         # policy / keyframe rate, 50 Hz [s]
+  gravity: [0.0, 0.0, -9.81]
+  floor_friction: [0.8, 0.005, 0.0001]   # slide, torsion, roll
+
+# Servo model. Joints reference a servo by key so sweeps can swap them.
+# Numbers are datasheet guesses until the BAM bench fit replaces them.
+servos:
+  sts3215:
+    mass: 0.055            # [kg]
+    size: [0.045, 0.024, 0.032]   # body box, for visuals and inertia [m]
+    stall_torque: 1.9      # [N*m], 7.4 V version (check datasheet)
+    max_velocity: 4.7      # [rad/s], no-load at 7.4 V (check datasheet)
+    armature: 0.005        # reflected rotor inertia [kg*m^2], fit later
+    damping: 0.05          # [N*m*s/rad], fit later
+    frictionloss: 0.02     # [N*m], fit later
+    kp: 10.0               # position gain [N*m/rad], fit later
+  # sts1910: {...}         # smaller alternative, add after bench tests
+
+default_servo: sts3215
+
+torso:
+  size: [0.08, 0.10, 0.10]    # box x, y, z [m]
+  structure_mass: 0.45        # frame + Pi 5 + battery + PCB, servos excluded [kg]
+  com_offset: [0.0, 0.0, 0.0] # COM relative to box center [m]
+
+# Left leg. Offsets are from the parent joint to the child joint, in the
+# parent frame at zero pose.
+leg:
+  hip_offset: [0.0, 0.035, -0.05]  # torso center to hip yaw axis [m]
+  hip_yaw_to_roll: [0.0, 0.0, -0.02]
+  hip_roll_to_pitch: [0.0, 0.0, -0.015]
+  thigh_length: 0.07          # hip pitch to knee [m]
+  shin_length: 0.07           # knee to ankle [m]
+  foot:
+    size: [0.09, 0.045, 0.008]  # box x, y, z [m]
+    ankle_to_center: [0.01, 0.0, -0.015]  # ankle axis to foot box center [m]
+  structure_mass:             # brackets and links, servos excluded [kg]
+    hip_yaw_link: 0.010
+    hip_roll_link: 0.010
+    thigh: 0.020
+    shin: 0.020
+    foot: 0.025
+
+head:
+  neck_offset: [0.0, 0.0, 0.06]   # torso center to neck pitch axis [m]
+  size: [0.07, 0.08, 0.06]        # box x, y, z [m]
+  structure_mass: 0.08            # shell, camera, speaker, LEDs [kg]
+  jaw_size: [0.04, 0.05, 0.01]
+  jaw_mass: 0.01
+
+# Joint axes are in the parent link frame. Ranges are [min, max] in rad.
+# Positive rotation about +y (right-hand rule) swings a downward leg BACKWARD
+# and tips the toes DOWN. So: hip pitch < 0 lifts the thigh forward (flexion),
+# knee > 0 folds the shin back (flexion), ankle < 0 lifts the toes.
+# Check this in the viewer with build_leg_fixed_base before trusting it.
+joints:
+  hip_yaw:    {axis: [0, 0, 1], range: [-0.79, 0.79]}   # +-45 deg
+  hip_roll:   {axis: [1, 0, 0], range: [-0.52, 0.52]}   # +-30 deg
+  hip_pitch:  {axis: [0, 1, 0], range: [-1.57, 1.05]}   # -90 to 60 deg
+  knee:       {axis: [0, 1, 0], range: [0.0, 2.27]}     # 0 to 130 deg
+  ankle:      {axis: [0, 1, 0], range: [-1.05, 1.05]}   # +-60 deg
+  neck_pitch: {axis: [0, 1, 0], range: [-0.79, 1.05]}   # -45 to 60 deg
+  neck_yaw:   {axis: [0, 0, 1], range: [-1.57, 1.57]}   # +-90 deg
+  jaw:        {axis: [0, 1, 0], range: [0.0, 0.52]}     # 0 to 30 deg
+
+# Payload for the drink delivery stretch task. Toggle for ID runs.
+payload:
+  enabled: false
+  mass: 0.4                 # [kg]
+  position: [0.05, 0.0, -0.03]  # relative to torso center [m]
+
+# Named poses, written as MuJoCo keyframes. Leg values are per side;
+# the generator mirrors them.
+keyframes:
+  stand:
+    base_height: 0.0        # 0 means "compute so the feet touch the floor"
+    hip_pitch: -0.35
+    knee: 0.7
+    ankle: -0.35
