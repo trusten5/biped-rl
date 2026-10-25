@@ -75,6 +75,7 @@ head:
 # and tips the toes DOWN. So: hip pitch < 0 lifts the thigh forward (flexion),
 # knee > 0 folds the shin back (flexion), ankle < 0 lifts the toes.
 # Same rule for the head: neck pitch < 0 looks up, jaw > 0 opens the mouth.
+# Each joint uses default_servo; add "servo: <key>" to a joint to override it.
 # Check this in the viewer with build_leg_fixed_base before trusting it.
 joints:
   hip_yaw:    {axis: [0, 0, 1], range: [-0.79, 0.79]}   # +-45 deg
