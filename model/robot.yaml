@@ -34,7 +34,7 @@ servos:
 default_servo: sts3215
 
 torso:
-  size: [0.08, 0.10, 0.10]    # box x, y, z [m]
+  size: [0.08, 0.10, 0.10]    # full box x, y, z (not half sizes) [m]
   structure_mass: 0.45        # frame + Pi 5 + battery + PCB, servos excluded [kg]
   com_offset: [0.0, 0.0, 0.0] # COM relative to box center [m]
 
@@ -47,7 +47,7 @@ leg:
   thigh_length: 0.07          # hip pitch to knee [m]
   shin_length: 0.07           # knee to ankle [m]
   foot:
-    size: [0.09, 0.045, 0.008]  # box x, y, z [m]
+    size: [0.09, 0.045, 0.008]  # full box x, y, z (not half sizes) [m]
     ankle_to_center: [0.01, 0.0, -0.015]  # ankle axis to foot box center [m]
   structure_mass:             # brackets and links, servos excluded [kg]
     hip_yaw_link: 0.010
@@ -58,7 +58,7 @@ leg:
 
 head:
   neck_offset: [0.0, 0.0, 0.06]   # torso center to neck pitch axis [m]
-  size: [0.07, 0.08, 0.06]        # box x, y, z [m]
+  size: [0.07, 0.08, 0.06]        # full box x, y, z (not half sizes) [m]
   structure_mass: 0.08            # shell, camera, speaker, LEDs [kg]
   jaw_size: [0.04, 0.05, 0.01]
   jaw_mass: 0.01
