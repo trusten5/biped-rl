@@ -84,6 +84,32 @@ def build_leg(parent, cfg, side):
     return foot
 
 
+def build_head(parent, cfg):
+    """Add the pan-tilt neck, head, and jaw under parent. On the centerline, so not mirrored. Returns the head body."""
+    head_cfg = cfg['head']
+    joints = cfg['joints']
+
+    def add_hinge(body, joint):
+        body.add_joint(name=joint, type=mujoco.mjtJoint.mjJNT_HINGE, axis=joints[joint]['axis'], range=joints[joint]['range'])
+
+    # Neck link: body frame sits on the neck yaw axis, small bracket up to the pitch axis
+    neck_link = parent.add_body(name='neck_link', pos=head_cfg['neck_offset'])
+    add_hinge(neck_link, 'neck_yaw')
+    neck_link.add_geom(name='neck_link', type=mujoco.mjtGeom.mjGEOM_CYLINDER, size=[0.01, 0.005], pos=[0, 0, 0.0075], mass=head_cfg['neck_link_mass'])
+
+    # Head: body frame sits on the neck pitch axis, box sits on top of it
+    head = neck_link.add_body(name='head', pos=head_cfg['neck_yaw_to_pitch'])
+    add_hinge(head, 'neck_pitch')
+    head.add_geom(name='head', type=mujoco.mjtGeom.mjGEOM_BOX, size=[s / 2 for s in head_cfg['size']], pos=head_cfg['center'], mass=head_cfg['structure_mass'])
+
+    # Jaw: body frame sits on the jaw hinge at the back of the mouth, flap extends forward
+    jaw = head.add_body(name='jaw', pos=head_cfg['jaw_hinge'])
+    add_hinge(jaw, 'jaw')
+    jaw.add_geom(name='jaw', type=mujoco.mjtGeom.mjGEOM_BOX, size=[s / 2 for s in head_cfg['jaw_size']], pos=head_cfg['jaw_center'], mass=head_cfg['jaw_mass'])
+
+    return head
+
+
 def _fixed_mount(spec):
     """Fixed box standing in for the torso (no joint, so welded to the world)."""
     mount = spec.worldbody.add_body(name='mount', pos=[0, 0, 0.3])
@@ -118,4 +144,16 @@ def build_legs_fixed_base() -> mujoco.MjSpec:
 def build() -> mujoco.MjSpec:
     """Full robot with a free-floating torso. Default source for the dev tools."""
     cfg = load_config()
-    raise NotImplementedError
+    spec = new_spec(cfg)
+
+    # Torso (free joint, so the whole robot can move and fall)
+    torso = spec.worldbody.add_body(name='torso', pos=[0, 0, 0.3])
+    torso.add_freejoint(name='root')
+    torso.add_geom(name='torso', type=mujoco.mjtGeom.mjGEOM_BOX, size=[s / 2 for s in cfg['torso']['size']], mass = cfg['torso']['structure_mass'], rgba=[0, 1, 0, 1])
+
+    # use leg helpers
+    build_leg(torso, cfg, 1)
+    build_leg(torso, cfg, -1)
+    build_head(torso, cfg)
+
+    return spec

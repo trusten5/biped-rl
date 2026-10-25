@@ -56,17 +56,25 @@ leg:
     shin: 0.020
     foot: 0.025
 
+# Head is pan-tilt: neck yaw on the torso, neck pitch on top of it, so the
+# tilt is always up/down relative to where the head is facing.
 head:
-  neck_offset: [0.0, 0.0, 0.06]   # torso center to neck pitch axis [m]
-  size: [0.07, 0.08, 0.06]        # full box x, y, z (not half sizes) [m]
-  structure_mass: 0.08            # shell, camera, speaker, LEDs [kg]
-  jaw_size: [0.04, 0.05, 0.01]
+  neck_offset: [0.0, 0.0, 0.06]       # torso center to neck yaw axis [m]
+  neck_yaw_to_pitch: [0.0, 0.0, 0.015]  # neck yaw axis to neck pitch axis [m]
+  neck_link_mass: 0.005               # bracket between the two neck servos [kg]
+  size: [0.07, 0.08, 0.06]            # full box x, y, z (not half sizes) [m]
+  center: [0.0, 0.0, 0.04]            # neck pitch axis to head box center [m]
+  structure_mass: 0.08                # shell, camera, speaker, LEDs [kg]
+  jaw_hinge: [-0.005, 0.0, 0.005]     # neck pitch axis to jaw hinge axis [m]
+  jaw_size: [0.04, 0.05, 0.01]        # full box x, y, z [m]
+  jaw_center: [0.02, 0.0, 0.0]        # jaw hinge to jaw box center [m]
   jaw_mass: 0.01
 
 # Joint axes are in the parent link frame. Ranges are [min, max] in rad.
 # Positive rotation about +y (right-hand rule) swings a downward leg BACKWARD
 # and tips the toes DOWN. So: hip pitch < 0 lifts the thigh forward (flexion),
 # knee > 0 folds the shin back (flexion), ankle < 0 lifts the toes.
+# Same rule for the head: neck pitch < 0 looks up, jaw > 0 opens the mouth.
 # Check this in the viewer with build_leg_fixed_base before trusting it.
 joints:
   hip_yaw:    {axis: [0, 0, 1], range: [-0.79, 0.79]}   # +-45 deg

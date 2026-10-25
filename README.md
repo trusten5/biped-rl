@@ -51,7 +51,7 @@ Run from the repo root with the venv active.
 python -m tools.view                       # hot-reload viewer for model.generator:build
 python -m tools.view model.leg:build_test  # any module:function returning an MjSpec or MjModel
 python -m tools.view path\to\robot.xml     # or a plain MJCF file
-python -m tools.view --frozen              # kinematics only, no physics stepping
+python -m tools.view --frozen              # kinematics only, plus a joint slider window
 
 python -m tools.inspect_model              # mass, COM, joints, actuators, sensors
 ```

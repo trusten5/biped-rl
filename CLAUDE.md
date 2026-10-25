@@ -41,8 +41,10 @@ Later phases: CAD and one-leg validation (Dec to Jan), custom PCB and full
 build (Jan to Feb), animation-driven RL in mjlab with sim-to-real (Feb to
 Apr), perception, tasks and paper (Apr to May).
 
-**Status (2026-10-25):** Step 1 (repo setup) done. Next: parameter config,
-then one leg on a fixed base (build_leg), then the full robot.
+**Status (2026-10-25):** Repo setup, robot.yaml config, mirrored build_leg,
+pan-tilt head, and the full free-floating build() are done (no servo masses,
+actuators, sensors, or keyframes yet). Next: servo masses, position
+actuators, stand keyframe with auto base height.
 
 ## Working with Claude
 
@@ -112,7 +114,9 @@ Run from the repo root with the venv active.
 
 - `python -m tools.view [module:func | file.xml] [--frozen]`: hot-reload
   viewer. Rebuilds whenever a file under model/ is saved; keeps the last good
-  model on errors; resets to the "stand" keyframe if present.
+  model on errors; resets to the "stand" keyframe if present. `--frozen`
+  skips physics and opens a separate joint slider window (the viewer's own
+  Joint panel is read-only in passive mode).
 - `python -m tools.inspect_model [module:func | file.xml]`: prints total
   mass, COM, bodies, joints, actuators, sensors, cameras, sites, keyframes.
 - Default source is `model.generator:build`: a zero-argument function that
